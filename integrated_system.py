@@ -17,8 +17,6 @@ warnings.filterwarnings("ignore")
 
 class IntegratedSystem:
     def __init__(self, gemini_api_key=None, elevenlabs_api_key=None):
-        print("⏳ Initializing Integrated Feel-Aware System...")
-        
         # Set API keys
         self.gemini_api_key = gemini_api_key
         self.elevenlabs_api_key = elevenlabs_api_key
@@ -36,7 +34,6 @@ class IntegratedSystem:
         self.audio = pyaudio.PyAudio()
         
         # Load Whisper model for transcription
-        print("⏳ Loading Whisper model...")
         self.whisper_model = whisper.load_model("tiny")
         
         # Initialize components
@@ -49,24 +46,20 @@ class IntegratedSystem:
         
         # Initialize Gemini if API key is provided
         if self.gemini_api_key:
-            print("⏳ Initializing Gemini...")
             genai.configure(api_key=self.gemini_api_key)
             self.gemini_model = genai.GenerativeModel('gemini-2.0-flash')
         else:
-            print("⚠️ No Gemini API key provided. Response generation will be simulated.")
+            print("No Gemini API key provided. Response generation will be simulated.")
             self.gemini_model = None
         
         # Initialize ElevenLabs if API key is provided
         if self.elevenlabs_api_key:
-            print("⏳ Initializing ElevenLabs...")
             set_api_key(self.elevenlabs_api_key)
         else:
-            print("⚠️ No ElevenLabs API key provided. Voice synthesis will be simulated.")
+            print("No ElevenLabs API key provided. Voice synthesis will be simulated.")
         
         # Conversation history
         self.conversation_history = []
-        
-        print("✅ Integrated Feel-Aware System initialized")
     
     def record_audio(self):
         """Records audio for RECORD_SECONDS and saves to a temporary WAV file."""
@@ -75,7 +68,7 @@ class IntegratedSystem:
                                     rate=self.RATE, input=True, 
                                     frames_per_buffer=self.CHUNK)
             
-            print(f"🎙️ Recording for {self.RECORD_SECONDS} second(s)...")
+            print(f"Recording for {self.RECORD_SECONDS} second(s)...")
             frames = []
             for _ in range(0, int(self.RATE / self.CHUNK * self.RECORD_SECONDS)):
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
@@ -90,7 +83,6 @@ class IntegratedSystem:
                 wf.setframerate(self.RATE)
                 wf.writeframes(b''.join(frames))
             
-            print(f"✓ Audio saved to {self.TEMP_WAV}")
             return self.TEMP_WAV
         except Exception as e:
             print(f"Error in recording audio: {str(e)}")
@@ -102,9 +94,7 @@ class IntegratedSystem:
             if not os.path.exists(filename):
                 print(f"Audio file not found: {filename}")
                 return ""
-            
-            print(f"Transcribing file: {filename}")
-            
+                        
             # Use a different approach for audio loading
             audio, sr = librosa.load(filename, sr=16000)
             
@@ -113,7 +103,6 @@ class IntegratedSystem:
             
             # Detect the spoken language
             _, probs = self.whisper_model.detect_language(mel)
-            print(f"Detected language: {max(probs, key=probs.get)}")
             
             # Decode the audio
             options = whisper.DecodingOptions(fp16=False)
@@ -123,55 +112,6 @@ class IntegratedSystem:
         except Exception as e:
             print(f"Error in transcription: {str(e)}")
             return ""
-    
-    def detect_voice_emotion(self, filename):
-        """Detects emotion from voice using improved thresholds"""
-        try:
-            # Use the voice detector to analyze the audio file
-            audio, sr = librosa.load(filename, sr=self.RATE)
-            
-            # Extract features
-            # Calculate energy (volume)
-            rms = librosa.feature.rms(y=audio)[0]
-            energy = np.mean(rms)
-            print(f"Voice Energy level: {energy:.4f}")
-            
-            # Calculate zero crossing rate (frequency)
-            zcr = librosa.feature.zero_crossing_rate(y=audio)[0]
-            zero_crossing = np.mean(zcr)
-            print(f"Voice Zero crossing rate: {zero_crossing:.4f}")
-            
-            # Calculate spectral centroid (brightness/sharpness)
-            spectral_centroid = np.mean(librosa.feature.spectral_centroid(y=audio, sr=sr)[0])
-            print(f"Voice Spectral centroid: {spectral_centroid:.4f}")
-            
-            # Apply the improved thresholds from our test
-            if energy > 0.01:  # High energy
-                if zero_crossing > 0.2:  # High zero crossing rate
-                    emotion = "angry"
-                    confidence = 0.7
-                else:
-                    emotion = "happy"
-                    confidence = 0.6
-            elif energy > 0.005:  # Medium energy
-                if zero_crossing > 0.18:
-                    emotion = "happy"
-                    confidence = 0.6
-                else:
-                    emotion = "neutral"
-                    confidence = 0.7
-            else:  # Low energy
-                if spectral_centroid < 2500:
-                    emotion = "sad"
-                    confidence = 0.6
-                else:
-                    emotion = "neutral"
-                    confidence = 0.8
-            
-            return emotion, confidence
-        except Exception as e:
-            print(f"Error detecting voice emotion: {str(e)}")
-            return "neutral", 0.5
     
     def generate_response(self, transcript):
         """Generates a response using Gemini"""
@@ -184,7 +124,7 @@ class IntegratedSystem:
             
             if self.gemini_model:
                 # Create prompt with conversation history
-                prompt = "You are a helpful and empathetic AI assistant. Respond to the following message:\n\n"
+                prompt = "You are a helpful and empathetic AI assistant. Respond to the following message in 1 to 2 lines:\n\n"
                 
                 # Add last few conversation turns for context (limit to 5 turns)
                 for message in self.conversation_history[-5:]:
@@ -207,28 +147,6 @@ class IntegratedSystem:
             return "I'm having trouble generating a response right now."
     
     def synthesize_voice(self, text, tone):
-        """Synthesizes voice using ElevenLabs with appropriate tone and emotion-based handling"""
-        if not text or text.strip() == "":
-            return False
-        
-        # If ElevenLabs has been disabled due to API issues, skip directly to fallback
-        if hasattr(self, 'elevenlabs_disabled') and self.elevenlabs_disabled:
-            print(f"\n[Simulated Voice] Speaking with {tone['style']} tone, {tone['rate']} rate, {tone['pitch']} pitch:")
-            print(f"'{text}'")
-            return False
-        
-        # For testing purposes, we'll use the simulated voice to avoid ElevenLabs free tier restrictions
-        # Remove this line if you have a paid ElevenLabs subscription
-        self.elevenlabs_disabled = True
-        print("\n⚠️ Using simulated voice to avoid ElevenLabs free tier restrictions.")
-        print("To use ElevenLabs voice synthesis, you may need to upgrade to a paid plan.")
-        print(f"\n[Simulated Voice] Speaking with {tone['style']} tone, {tone['rate']} rate, {tone['pitch']} pitch:")
-        print(f"'{text}'")
-        return False
-        
-        # The code below is kept for reference but will not be executed due to the early return above
-        # Uncomment the code below and remove the early return if you have a paid ElevenLabs subscription
-        
         try:
             if self.elevenlabs_api_key:
                 try:
@@ -285,7 +203,6 @@ class IntegratedSystem:
                     
                     # Save audio file
                     save(audio, self.RESPONSE_AUDIO)
-                    print(f"✓ Voice response saved to {self.RESPONSE_AUDIO}")
                     return True
                     
                 except Exception as e:
@@ -332,7 +249,6 @@ class IntegratedSystem:
             data = wf.readframes(self.CHUNK)
             
             # Play audio
-            print("🔊 Playing audio response...")
             while len(data) > 0:
                 stream.write(data)
                 data = wf.readframes(self.CHUNK)
@@ -352,12 +268,10 @@ class IntegratedSystem:
             return
         
         # Detect voice emotion
-        print("\n🎭 Analyzing voice emotion...")
-        voice_emotion, voice_confidence = self.detect_voice_emotion(audio_file)
-        print(f"Voice Emotion: {voice_emotion.upper()} (confidence: {voice_confidence:.2f})")
+        Voice_emotion, Voice_confidence = self.voice_detector.detect_emotion_from_file(audio_file)
+        print(f"Voice Emotion: {Voice_emotion.upper()} (confidence: {Voice_confidence:.2f})")
         
         # Transcribe audio
-        print("\n🔍 Transcribing speech...")
         transcript = self.transcribe_audio(audio_file).strip()
         
         if not transcript:
@@ -367,7 +281,6 @@ class IntegratedSystem:
         print(f"📝 Transcript: \"{transcript}\"")
         
         # Analyze text sentiment
-        print("\n💬 Analyzing text sentiment...")
         sentiment_score, sentiment_label = self.text_checker.analyze_transcript(transcript)
         
         if sentiment_score is not None:
@@ -382,18 +295,15 @@ class IntegratedSystem:
         current_tone = self.tone_switcher.get_current_tone()
         
         # Generate response
-        print("\n💡 Generating AI response...")
         response_text = self.generate_response(transcript)
         print(f"AI Response: \"{response_text}\"")
         
         # Generate SSML
         ssml = self.tone_switcher.generate_ssml(response_text)
         
-        print("\n🔊 TONE SWITCHER RESULT:")
         print(f"Selected tone: {current_tone['style']} (rate: {current_tone['rate']}, pitch: {current_tone['pitch']})")
         
         # Synthesize voice
-        print("\n🗣️ Synthesizing voice...")
         voice_success = self.synthesize_voice(response_text, current_tone)
         
         # Play audio response if synthesis was successful
@@ -406,7 +316,6 @@ class IntegratedSystem:
     
     def start(self):
         """Start the integrated system"""
-        print("\n🟢 Integrated Feel-Aware System Running...")
         print("Speak into the microphone when prompted.")
         print("Press Ctrl+C to exit.")
         
@@ -430,30 +339,18 @@ class IntegratedSystem:
             os.remove(self.TEMP_WAV)
         if os.path.exists(self.RESPONSE_AUDIO):
             os.remove(self.RESPONSE_AUDIO)
-        print("🛑 Integrated Feel-Aware System stopped")
 
 if __name__ == "__main__":
     # Load environment variables from .env file
     try:
         from dotenv import load_dotenv
         load_dotenv()
-        print("✅ Loaded environment variables from .env file")
     except ImportError:
         print("⚠️ dotenv package not found. Using environment variables directly.")
     
     # Get API keys from environment variables
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     elevenlabs_api_key = os.environ.get("ELEVENLABS_API_KEY")
-    
-    if gemini_api_key:
-        print("✅ Gemini API key found")
-    else:
-        print("⚠️ Gemini API key not found")
-        
-    if elevenlabs_api_key:
-        print("✅ ElevenLabs API key found")
-    else:
-        print("⚠️ ElevenLabs API key not found")
     
     system = IntegratedSystem(gemini_api_key, elevenlabs_api_key)
     system.start()

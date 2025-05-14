@@ -59,12 +59,30 @@ class VoiceEmotionDetector:
             # Record audio
             audio_file = self.record_audio()
             
+            # Analyze the audio file
+            emotion, confidence = self.detect_emotion_from_file(audio_file)
+            
+            # Clean up
+            if os.path.exists(audio_file):
+                os.remove(audio_file)
+                
+            return emotion, confidence
+            
+        except Exception as e:
+            print(f"Error in voice emotion detection: {str(e)}")
+            return "neutral", 0.5
+    
+    def detect_emotion_from_file(self, audio_file):
+        """
+        Detects emotion from a pre-recorded audio file.
+        Returns a tuple of (emotion, confidence_score)
+        """
+        try:
             # Load audio using librosa
             audio, sr = librosa.load(audio_file, sr=self.RATE)
             
             # Extract features
-            f0, voiced_flag, voiced_probs = librosa.pyin(audio, fmin=librosa.note_to_hz('C2'),
-                                                        fmax=librosa.note_to_hz('C7'))
+            f0, voiced_flag, voiced_probs = librosa.pyin(audio, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'))
             
             # Calculate basic features
             energy = np.mean(librosa.feature.rms(y=audio))
@@ -86,15 +104,10 @@ class VoiceEmotionDetector:
                 else:
                     emotion = "neutral"
                     confidence = 0.8
-            
-            # Clean up
-            if os.path.exists(audio_file):
-                os.remove(audio_file)
-                
+                    
             return emotion, confidence
             
         except Exception as e:
-            print(f"Error in voice emotion detection: {str(e)}")
             return "neutral", 0.5
     
     def cleanup(self):
